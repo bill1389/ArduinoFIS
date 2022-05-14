@@ -1,6 +1,8 @@
 #include <avr/eeprom.h>
 #include "SoftwareSerial.h"
 #include "SPI.h"
+#include "EncButton.h"
+
 #define pinKLineRX 2
 #define pinKLineTX 3
 #define pinButton 4
@@ -33,6 +35,8 @@ void FIS_WRITE_startENA();
 void FIS_WRITE_stopENA();
 //END WRITE TO CLUSTER
 
+EncButton<EB_TICK, pinButton> btnUp(INPUT);
+
 
 #define ADR_Engine 0x01
 #define ADR_Gears  0x02
@@ -43,7 +47,7 @@ void FIS_WRITE_stopENA();
 #define ADR_Central_locking 0x35
 
 int ADR_Engine_Speed = 10000;
-int ADR_Dashboard_Speed  = 9600;
+int ADR_Dashboard_Speed  = 10000;
 
 SoftwareSerial obd(pinKLineRX, pinKLineTX, false); // RX, TX, inverse logic
 
@@ -683,8 +687,8 @@ void updateDisplay()
     switch (currPage)
     {
     case 1:
-        FIS_WRITE_line1="AUDI";
-    FIS_WRITE_line2="QUATTRO";
+      FIS_WRITE_line1="AUDI";
+      FIS_WRITE_line2="QUATTRO";
 
       // FIS_WRITE_line1="FUEL:";
       // FIS_WRITE_line2=String(fuelLevel);
@@ -722,6 +726,8 @@ void setup()
   pinMode(pinKLineTX, OUTPUT);
   digitalWrite(pinKLineTX, HIGH);
   pinMode(pinButton, INPUT_PULLUP);
+  
+
 
   //WRITE TO CLUSTER
   pinMode(FIS_WRITE_ENA, OUTPUT);
@@ -745,32 +751,34 @@ void setup()
 void loop()
 {
   //eeprom_write_float(1, 1);
+  btnUp.tick(); 
 
-  if (digitalRead(pinButton) == LOW){    
+  if (btnUp.click()){    
     currPage++;
     if (currPage > 5) currPage = 1;
-    eeprom_update_byte(0, currPage);
-    errorTimeout = 0;
-    errorData = 0;            
-    while (digitalRead(pinButton) == LOW);        
+    eeprom_update_byte(0, currPage);       
   }
 
+  if (btnUp.held()){
 
+        }
+
+//  if (digitalRead(pinButton) == LOW){    
+//     currPage++;
+//     if (currPage > 5) currPage = 1;
+//     eeprom_update_byte(0, currPage);
+//     errorTimeout = 0;
+//     errorData = 0;            
+//     while (digitalRead(pinButton) == LOW);        
+//   }
+
+
+  
   switch (currPage)
   {
   case 1:
       FIS_WRITE_line1="AUDI";
-    FIS_WRITE_line2="QUATTRO";
-    // if (currAddr != ADR_Dashboard)
-    // {
-    //   disconnect();
-    //   //connect(ADR_Dashboard, ADR_Dashboard_Speed);
-    // }
-    // else
-    // {
-    //  // readSensors(2);
-    //   //readSensors(50);
-    // }
+      FIS_WRITE_line2="QUATTRO";    
     break;
 
   case 2:
@@ -782,6 +790,10 @@ void loop()
     {
       readSensors(4);
     }
+
+    FIS_WRITE_line1="COOL:"+ String(coolantTemp);
+    FIS_WRITE_line2="AIR:"+ String(intakeAirTemp);
+
     break;
 
   case 3:
@@ -793,6 +805,9 @@ void loop()
     {
       readSensors(115);
     }
+    FIS_WRITE_line1="BOOST:";
+    FIS_WRITE_line2= String(turboPress);
+
     break;
      case 4:
     if (currAddr != ADR_Engine)
@@ -803,6 +818,8 @@ void loop()
     {
       readSensors(2);
     }
+    FIS_WRITE_line1="INJ:"+ String(injektTime);
+    FIS_WRITE_line2="MAF:"+ String(MAF);
     break;
      case 5:
     if (currAddr != ADR_Engine)
@@ -814,9 +831,40 @@ void loop()
       readSensors(5);
 
     }
+    FIS_WRITE_line1="RPM:"+ String(engineSpeed);
+    FIS_WRITE_line2="SPD:"+ String(vehicleSpeed);
+    break;
+    case 6:
+     if (currAddr != ADR_Dashboard)
+     {
+    //   disconnect();
+      connect(ADR_Dashboard, ADR_Dashboard_Speed);
+     }
+     else
+     {
+       readSensors(2);
+       //readSensors(50);
+     }
+     FIS_WRITE_line1="FUEL:";
+     FIS_WRITE_line2=String(fuelLevel);
+    break;
+        case 7:
+     if (currAddr != ADR_Dashboard)
+     {
+    //   disconnect();
+      connect(ADR_Dashboard, ADR_Dashboard_Speed);
+     }
+     else
+     {
+       //readSensors(2);
+       readSensors(50);
+     }
+     FIS_WRITE_line1="COOL:";
+     FIS_WRITE_line2=String(coolantTemp);
     break;
   }
-  updateDisplay();
+ 
+ // updateDisplay();
 
 
 
