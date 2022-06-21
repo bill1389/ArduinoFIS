@@ -3,9 +3,10 @@
 #include "SPI.h"
 #include "EncButton.h"
 
-#define pinKLineRX 2
+#define pinButton 2
 #define pinKLineTX 3
-#define pinButton 4
+#define pinKLineRX 4
+
 //WRITE TO CLUSTER
 #define FIS_WRITE_ENA 5 
 #define FIS_WRITE_CLK 6 
@@ -47,7 +48,7 @@ EncButton<EB_TICK, pinButton> btnUp(INPUT);
 #define ADR_Central_locking 0x35
 
 int ADR_Engine_Speed = 10000;
-int ADR_Dashboard_Speed  = 10000;
+int ADR_Dashboard_Speed  = 10400;
 
 SoftwareSerial obd(pinKLineRX, pinKLineTX, false); // RX, TX, inverse logic
 
@@ -67,6 +68,10 @@ uint8_t currPageOld;
 
 String readString;
 
+int param0;
+int param1;
+int param2;
+int param3;
 
 String turboZapros;
 String turboPress;
@@ -88,12 +93,25 @@ unsigned long odometer = 0;
 
 float injektTime = 0;
 float MAF = 0;
-// float Lhour = 0;
-// float L100Current = 0;
-// float L100;
-// float L100tmp = 0;
-// int ix =1;
+ float Lhour = 0;
+ float LhourAVGtmp = 0;
+ float LhourAVG = 0;
+ float L100Current = 0;
+ float L100;
 
+ float L100tmp;
+ int ix = 1;
+
+  int iy = 1; 
+ float L100Move = 0;
+ float L100Movetmp = 0;
+
+ float vehicleSpeedAVGtmp;
+ float vehicleSpeedAVG;
+ float L100AVG;
+//  float L100tmp =0;
+//  int ix = 1;
+bool SaveL100Flag = false;
 
 
 //WRITE TO CLUSTER 
@@ -600,6 +618,7 @@ bool readSensors(int group){
             break;
           case 2: 
             switch (idx){
+              case 0: engineSpeed = v; break;
               case 2: injektTime =v; break;
               case 3: MAF=v; break;
             }              
@@ -619,6 +638,15 @@ bool readSensors(int group){
 
             }
             break;
+          default:  
+            switch (idx){
+              case 0: param0 = v; break;
+              case 1: param1 = v; break;
+              case 2: param2 = v; break;
+              case 3: param3 = v; break;    
+            }
+          break;
+
         }
         break;
       case ADR_Dashboard: 
@@ -720,12 +748,28 @@ void updateDisplay()
   pageUpdateCounter++;
 }
 
+void btnInterrupt(){
+  btnUp.tickISR();
+  //  if (btnUp.click()){    
+  //   currPage++;
+  //   if (currPage > 6) currPage = 1;
+  //   eeprom_update_byte(0, currPage);       
+  // }
+
+  // if (btnUp.held()){
+  //   currPage = 1;
+  //   eeprom_update_byte(0, currPage);
+  //       }
+        //Serial.println("click");
+}
 void setup()
 {
   currPage = eeprom_read_byte(0);
   pinMode(pinKLineTX, OUTPUT);
   digitalWrite(pinKLineTX, HIGH);
   pinMode(pinButton, INPUT_PULLUP);
+
+  attachInterrupt(0, btnInterrupt, FALLING);
   
 
 
@@ -752,15 +796,35 @@ void loop()
 {
   //eeprom_write_float(1, 1);
   btnUp.tick(); 
-
-  if (btnUp.click()){    
+        // eeprom_write_dword(1,1);
+        // eeprom_write_float(5,1);
+  if (btnUp.hasClicks(1)){    
     currPage++;
-    if (currPage > 5) currPage = 1;
+    if (currPage > 9) currPage = 7;
+    eeprom_update_byte(0, currPage);       
+  }
+
+  if (btnUp.hasClicks(2)){    
+    currPage--;
+    if (currPage < 7) currPage = 9;
     eeprom_update_byte(0, currPage);       
   }
 
   if (btnUp.held()){
 
+        eeprom_write_dword(1,1);
+        eeprom_write_float(5,0);
+
+           LhourAVGtmp = 0;
+           L100tmp = 0;
+           ix = 1;
+           iy = 1;
+           vehicleSpeedAVGtmp=0;
+           L100Movetmp = 0;
+
+    
+    //currPage = 1;
+    //eeprom_update_byte(0, currPage);
         }
 
 //  if (digitalRead(pinButton) == LOW){    
@@ -772,7 +836,60 @@ void loop()
 //     while (digitalRead(pinButton) == LOW);        
 //   }
 
+//рассчет расхода топлива
+  if (currAddr != ADR_Engine)
+    {
+      if(SaveL100Flag){
+        eeprom_update_dword(1, ix);
+        eeprom_update_float(5,L100tmp);
+        SaveL100Flag = false;
+      }
+      connect(ADR_Engine, ADR_Engine_Speed);
+    }
+    else
+    {
+      readSensors(2);
+      readSensors(5);
 
+      if(engineSpeed>0){
+        Lhour = (float)engineSpeed * (float)injektTime * float(0.0004478);
+       if (vehicleSpeed == 0){
+        L100Current = (float)Lhour * (float)100.0 / 2.0; //пусть при стоящем авто скорость будет 1 км/ч
+       } else {
+        L100Current = (float)Lhour * (float)100.0 / (float)vehicleSpeed;
+        L100Movetmp = L100Movetmp + L100Current;
+        L100Move = L100Movetmp/iy;
+        iy++;
+       }
+
+        L100tmp = L100tmp+L100Current;
+        L100 = L100tmp / ix;
+
+// посчитать л.ч среднее и среднюю скорость, а потом вычислить средний расход
+        LhourAVGtmp = LhourAVGtmp+Lhour;
+        LhourAVG = LhourAVGtmp/ix;
+        vehicleSpeedAVGtmp = vehicleSpeedAVGtmp+vehicleSpeed;
+        vehicleSpeedAVG = vehicleSpeedAVGtmp / ix;
+        L100AVG= (float)LhourAVG * (float)108.0 / (float)vehicleSpeedAVG;
+
+        ix++;
+      }
+      
+
+
+        SaveL100Flag = true;
+        // if(ix%10){
+
+        // } else {
+        // eeprom_update_dword(1, ix);
+        // eeprom_update_float(5,L100tmp);
+        // }
+
+
+    }
+
+  Serial.println(ix);
+   Serial.println(iy);
   
   switch (currPage)
   {
@@ -788,6 +905,7 @@ void loop()
     }
     else
     {
+      
       readSensors(4);
     }
 
@@ -810,31 +928,58 @@ void loop()
 
     break;
      case 4:
-    if (currAddr != ADR_Engine)
-    {
-      connect(ADR_Engine, ADR_Engine_Speed);
-    }
-    else
-    {
-      readSensors(2);
-    }
+    // if (currAddr != ADR_Engine)
+    // {
+    //   connect(ADR_Engine, ADR_Engine_Speed);
+    // }
+    // else
+    // {
+    //   readSensors(2);
+    // }
     FIS_WRITE_line1="INJ:"+ String(injektTime);
     FIS_WRITE_line2="MAF:"+ String(MAF);
     break;
      case 5:
-    if (currAddr != ADR_Engine)
-    {
-      connect(ADR_Engine, ADR_Engine_Speed);
-    }
-    else
-    {
-      readSensors(5);
+        // if (currAddr != ADR_Engine)
+        // {
+        //   connect(ADR_Engine, ADR_Engine_Speed);
+        // }
+        // else
+        // {
+        //   readSensors(5);
 
-    }
-    FIS_WRITE_line1="RPM:"+ String(engineSpeed);
-    FIS_WRITE_line2="SPD:"+ String(vehicleSpeed);
-    break;
-    case 6:
+        // }
+        FIS_WRITE_line1="RPM:"+ String(engineSpeed);
+        FIS_WRITE_line2="SPD:"+ String(vehicleSpeed);
+      break;
+      case 6:
+        if (currAddr != ADR_Engine)
+        {
+          connect(ADR_Engine, ADR_Engine_Speed);
+        }
+        else
+        {
+          readSensors(20);
+
+        }
+        FIS_WRITE_line1="RETARDS:";
+        FIS_WRITE_line2=String(param0)+":"+String(param1)+":"+String(param2)+":"+String(param3);
+      break;
+      case 7:
+        FIS_WRITE_line1=String(Lhour)+"L:H";
+        FIS_WRITE_line2=String(L100)+"L";
+      break;
+      case 8:
+        FIS_WRITE_line1=String(vehicleSpeedAVG)+"K";
+        FIS_WRITE_line2=String(L100AVG)+"L";
+      break;
+      case 9:
+        FIS_WRITE_line1=String(Lhour)+"K";
+        FIS_WRITE_line2=String(L100Move)+"L";
+      break;
+
+
+    case 17:
      if (currAddr != ADR_Dashboard)
      {
     //   disconnect();
@@ -848,7 +993,7 @@ void loop()
      FIS_WRITE_line1="FUEL:";
      FIS_WRITE_line2=String(fuelLevel);
     break;
-        case 7:
+        case 18:
      if (currAddr != ADR_Dashboard)
      {
     //   disconnect();
