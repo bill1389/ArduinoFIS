@@ -752,8 +752,18 @@ void updateDisplay()
 
 void btnInterrupt(){
   btnUp.tickISR();
-}
+  //  if (btnUp.click()){    
+  //   currPage++;
+  //   if (currPage > 6) currPage = 1;
+  //   eeprom_update_byte(0, currPage);       
+  // }
 
+  // if (btnUp.held()){
+  //   currPage = 1;
+  //   eeprom_update_byte(0, currPage);
+  //       }
+        //Serial.println("click");
+}
 void setup()
 {
   currPage = eeprom_read_byte(0);
@@ -815,9 +825,21 @@ void loop()
            vehicleSpeedAVGtmp=0;
            L100Movetmp = 0;
 
+    
+    //currPage = 1;
+    //eeprom_update_byte(0, currPage);
         }
 
+//  if (digitalRead(pinButton) == LOW){    
+//     currPage++;
+//     if (currPage > 5) currPage = 1;
+//     eeprom_update_byte(0, currPage);
+//     errorTimeout = 0;
+//     errorData = 0;            
+//     while (digitalRead(pinButton) == LOW);        
+//   }
 
+//рассчет расхода топлива
   if (currAddr != ADR_Engine)
     {
       if(SaveL100Flag){
@@ -884,65 +906,109 @@ void loop()
     break;
 
   case 2:
+    if (currAddr != ADR_Engine)
+    {
+      connect(ADR_Engine, ADR_Engine_Speed);
+    }
+    else
+    {
+      
       readSensors(4);
+    }
 
-      FIS_WRITE_line1="COOL:"+ String(coolantTemp);
-      FIS_WRITE_line2="AIR:"+ String(intakeAirTemp);
+    FIS_WRITE_line1="COOL:"+ String(coolantTemp);
+    FIS_WRITE_line2="AIR:"+ String(intakeAirTemp);
 
-  break;
+    break;
 
   case 3:
+    if (currAddr != ADR_Engine)
+    {
+      connect(ADR_Engine, ADR_Engine_Speed);
+    }
+    else
+    {
       readSensors(115);
+    }
+    FIS_WRITE_line1="BOOST:";
+    FIS_WRITE_line2= String(turboPress);
 
-      FIS_WRITE_line1="BOOST:";
-      FIS_WRITE_line2= String(turboPress);
-
-  break;
-  case 4:
-
+    break;
+     case 4:
+    // if (currAddr != ADR_Engine)
+    // {
+    //   connect(ADR_Engine, ADR_Engine_Speed);
+    // }
+    // else
+    // {
+    //   readSensors(2);
+    // }
     FIS_WRITE_line1="INJ:"+ String(injektTime);
     FIS_WRITE_line2="MAF:"+ String(MAF);
-  break;
-  case 5:
+    break;
+     case 5:
+        // if (currAddr != ADR_Engine)
+        // {
+        //   connect(ADR_Engine, ADR_Engine_Speed);
+        // }
+        // else
+        // {
+        //   readSensors(5);
 
-    FIS_WRITE_line1="RPM:"+ String(engineSpeed);
-    FIS_WRITE_line2="SPD:"+ String(vehicleSpeed);
-  break;
-  case 6:
+        // }
+        FIS_WRITE_line1="RPM:"+ String(engineSpeed);
+        FIS_WRITE_line2="SPD:"+ String(vehicleSpeed);
+      break;
+      case 6:
+        if (currAddr != ADR_Engine)
+        {
+          connect(ADR_Engine, ADR_Engine_Speed);
+        }
+        else
+        {
+          readSensors(20);
 
-      readSensors(20);
+        }
+        FIS_WRITE_line1="RETARDS:";
+        FIS_WRITE_line2=String(param0)+":"+String(param1)+":"+String(param2)+":"+String(param3);
+      break;
 
-  
-    FIS_WRITE_line1="RETARDS:";
-    FIS_WRITE_line2=String(param0)+":"+String(param1)+":"+String(param2)+":"+String(param3);
-  break;
-
-  case 7:
-
+      case 7:
+          if (currAddr != ADR_Engine)
+    {
+      connect(ADR_Engine, ADR_Engine_Speed);
+    }
+    else
+    {
       readSensors(115);
-    
-      if(turboPressCount>6){
-        turboPressCount = 0;
-        turboPressMax = 0;
-      }
-      if(turboPress.toFloat()>turboPressMax){
-        turboPressMax = turboPress.toFloat();
-        turboPressCount = 0;
-      }
-      turboPressCount++;
+    }
+    if(turboPressCount>6){
+      turboPressCount = 0;
+      turboPressMax = 0;
+    }
+    if(turboPress.toFloat()>turboPressMax){
+      turboPressMax = turboPress.toFloat();
+      turboPressCount = 0;
+    }
+    turboPressCount++;
 
-      FIS_WRITE_line1=String(turboPressMax);
-      FIS_WRITE_line2= String(turboPress);
+    FIS_WRITE_line1=String(turboPressMax);
+    FIS_WRITE_line2= String(turboPress);
 
     break;
-    case 8:
+
+
+        // FIS_WRITE_line1=String(Lhour)+"L:H";
+        // FIS_WRITE_line2=String(L100)+"L";
+      //break;
+      case 8:
         FIS_WRITE_line1=String(vehicleSpeedAVG)+"K";
         FIS_WRITE_line2=String(L100AVG)+"L";
-    break;
-    case 9:
+      break;
+      case 9:
         // FIS_WRITE_line1=String(Lhour)+"K";
         // FIS_WRITE_line2=String(L100Move)+"L";
-    break;
+      break;
 
 
     case 17:
